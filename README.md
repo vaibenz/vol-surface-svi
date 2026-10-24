@@ -34,6 +34,10 @@ Synthetic NKY chain for 23 Oct 2026, 6 expiries, 2,916 quotes generated from a k
 
 Against the true surface the fit is within 0.25 vol points over the quoted range on every expiry except Dec 26, where one stale call quote sits inside its own (wide) spread band, survives the outlier pass and pulls the far wing up by about 1.5 points. A better outlier rule would compare against neighbouring strikes rather than the quote's own spread.
 
+![svi fit per expiry with bid/ask bars, outliers marked x, true surface dashed](docs/smiles.png)
+
+![fitted surface and term structure](docs/surface.png)
+
 ## Running
 
 ```
