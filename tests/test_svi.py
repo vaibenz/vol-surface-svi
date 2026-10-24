@@ -58,5 +58,5 @@ def test_calendar_penalty_keeps_slice_above_previous():
     # quotes that sit slightly below the shorter expiry in total variance
     iv = np.sqrt(short.w(k) * 0.97 / T)
     fit, _ = fit_svi(k, iv, T, prev=short)
-    grid = np.linspace(-1, 1, 81)
+    grid = np.linspace(-1, 1, 161)
     assert (fit.w(grid) - short.w(grid)).min() > -1e-4

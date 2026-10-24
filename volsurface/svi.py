@@ -44,7 +44,7 @@ class SVI:
         return astuple(self)
 
 
-ARB_GRID = np.linspace(-1.0, 1.0, 81)
+ARB_GRID = np.linspace(-1.0, 1.0, 161)
 
 
 def _residuals(p, k, w_mkt, weights, arb_free, w_prev):
@@ -58,7 +58,9 @@ def _residuals(p, k, w_mkt, weights, arb_free, w_prev):
         # grid wider than the data
         from .arbitrage import durrleman_g
         g = durrleman_g(s, ARB_GRID)
-        pens.append(100.0 * np.maximum(0.0, -g))
+        # small buffer above 0 because the penalty is soft and otherwise
+        # lands a hair below zero
+        pens.append(1e3 * np.maximum(0.0, 1e-3 - g))
     if w_prev is not None:
         # calendar: total variance has to sit above the previous expiry's
         pens.append(1e4 * np.maximum(0.0, w_prev - s.w(ARB_GRID)))
