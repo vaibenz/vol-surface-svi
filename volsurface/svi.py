@@ -44,16 +44,28 @@ class SVI:
         return astuple(self)
 
 
-def _residuals(p, k, w_mkt, weights):
-    a, b, rho, m, sig = p
-    model = a + b * (rho * (k - m) + np.sqrt((k - m) ** 2 + sig**2))
-    res = (model - w_mkt) * weights
+ARB_GRID = np.linspace(-1.0, 1.0, 81)
+
+
+def _residuals(p, k, w_mkt, weights, arb_free, w_prev):
+    s = SVI(*p)
+    res = (s.w(k) - w_mkt) * weights
     # soft penalty for negative minimum variance
-    pen = max(0.0, -(a + b * sig * np.sqrt(1 - rho**2))) * 1e3
-    return np.append(res, pen)
+    pens = [max(0.0, -s.min_variance()) * 1e3]
+    if arb_free:
+        # the unconstrained fit can bend the wings outside the quoted range
+        # enough to create butterfly arbitrage, so penalise g(k) < 0 on a
+        # grid wider than the data
+        from .arbitrage import durrleman_g
+        g = durrleman_g(s, ARB_GRID)
+        pens.append(100.0 * np.maximum(0.0, -g))
+    if w_prev is not None:
+        # calendar: total variance has to sit above the previous expiry's
+        pens.append(1e4 * np.maximum(0.0, w_prev - s.w(ARB_GRID)))
+    return np.concatenate([res, *[np.atleast_1d(x) for x in pens]])
 
 
-def fit_svi(k, iv, T, weights=None, n_starts=8, seed=0):
+def fit_svi(k, iv, T, weights=None, n_starts=8, seed=0, arb_free=False, prev=None):
     """Fit raw SVI to one smile.
 
     k:  log moneyness, iv: implied vols, T: year fraction.
@@ -61,6 +73,8 @@ def fit_svi(k, iv, T, weights=None, n_starts=8, seed=0):
     done in total variance space, so the default weights divide by 2*iv*T to
     make residuals roughly vol errors.
     Several random starts because SVI has local minima, best one kept.
+    arb_free: penalise butterfly arbitrage on a wide k grid
+    prev:     SVI of the previous (shorter) expiry, penalise calendar arbitrage
     """
     k = np.asarray(k, float)
     iv = np.asarray(iv, float)
@@ -69,6 +83,7 @@ def fit_svi(k, iv, T, weights=None, n_starts=8, seed=0):
         weights = 1.0 / (2 * iv * T)
     weights = np.asarray(weights, float)
 
+    w_prev = None if prev is None else prev.w(ARB_GRID)
     rng = np.random.default_rng(seed)
     w_atm = float(np.interp(0.0, k, w_mkt))
     lo = [-1.0, 1e-6, -0.999, 2 * k.min() - 0.1, 1e-4]
@@ -82,7 +97,8 @@ def fit_svi(k, iv, T, weights=None, n_starts=8, seed=0):
             x0 = [rng.uniform(0, w_atm), rng.uniform(0.01, 0.5), rng.uniform(-0.9, 0.5),
                   rng.uniform(k.min(), k.max()), rng.uniform(0.01, 0.5)]
         x0 = np.clip(x0, np.array(lo) + 1e-9, np.array(hi) - 1e-9)
-        res = least_squares(_residuals, x0, bounds=(lo, hi), args=(k, w_mkt, weights), method="trf")
+        res = least_squares(_residuals, x0, bounds=(lo, hi), args=(k, w_mkt, weights, arb_free, w_prev),
+                            method="trf")
         if best is None or res.cost < best.cost:
             best = res
 

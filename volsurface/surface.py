@@ -6,7 +6,7 @@ from .arbitrage import butterfly_check, calendar_check
 from .svi import fit_svi
 
 
-def fit_slice(sl, outlier_mult=3.0):
+def fit_slice(sl, outlier_mult=3.0, arb_free=True, prev=None):
     """Fit one expiry. Weighted by 1 / bid ask width in vol so tight ATM
     quotes matter more than wide wings, then one pass of outlier removal
     (points more than outlier_mult x their own half spread away from the
@@ -18,11 +18,11 @@ def fit_slice(sl, outlier_mult=3.0):
     weights = w_vol / (2 * sl["iv"] * T)          # residuals are in total variance, convert
     k, iv = sl["k"].to_numpy(), sl["iv"].to_numpy()
 
-    svi, _ = fit_svi(k, iv, T, weights.to_numpy())
+    svi, _ = fit_svi(k, iv, T, weights.to_numpy(), arb_free=arb_free, prev=prev)
     resid = np.abs(svi.vol(k, T) - iv)
     keep = resid <= outlier_mult * half.to_numpy()
     if (~keep).any():
-        svi, _ = fit_svi(k[keep], iv[keep], T, weights.to_numpy()[keep])
+        svi, _ = fit_svi(k[keep], iv[keep], T, weights.to_numpy()[keep], arb_free=arb_free, prev=prev)
 
     fitted = svi.vol(k, T)
     inside = (fitted >= sl["iv_bid"].fillna(-1)) & (fitted <= sl["iv_ask"].fillna(9))
@@ -37,10 +37,14 @@ def fit_slice(sl, outlier_mult=3.0):
     return svi, stats, keep
 
 
-def fit_surface(vols):
+def fit_surface(vols, arb_free=True):
+    """Fits expiries shortest first so each one can be kept above the last
+    in total variance when arb_free is on."""
     slices, rows, flags = [], [], []
+    prev = None
     for _, sl in vols.groupby("expiry"):
-        svi, stats, keep = fit_slice(sl)
+        svi, stats, keep = fit_slice(sl, arb_free=arb_free, prev=prev if arb_free else None)
+        prev = svi
         bf = butterfly_check(svi)
         stats["butterfly_ok"] = bf["ok"]
         stats["min_g"] = bf["min_g"]
