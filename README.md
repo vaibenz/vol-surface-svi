@@ -4,14 +4,14 @@ Fits an implied volatility surface to an index option chain using raw SVI, one e
 
 ## Pipeline
 
-1. **Clean the chain**: drop zero bids and crossed or locked markets.
-2. **Forward and discount factor from put call parity**: C - P = df(F - K) is a straight line in K, fitted with Theil-Sen near the money so a single stale quote can't move the forward much. On the sample chain the implied forwards land within 0.06% of the true ones.
-3. **OTM implied vols** from mid, bid and ask (Brent root finding, NaN if the price is outside no arbitrage bounds).
-4. **Raw SVI fit per expiry**: weighted least squares on total variance, weights of 1 / bid ask width in vol so the tight ATM quotes count more than the wide wings, several random starts, then one outlier pass (anything more than 3x its own half spread from the first fit is dropped and the slice refitted).
-5. **Arbitrage checks**
+1. Clean the chain: drop zero bids and crossed or locked markets.
+2. Forward and discount factor from put call parity: C - P = df(F - K) is a straight line in K, fitted with Theil-Sen near the money so a single stale quote can't move the forward much. On the sample chain the implied forwards land within 0.06% of the true ones.
+3. OTM implied vols from mid, bid and ask (Brent root finding, NaN if the price is outside no arbitrage bounds).
+4. Raw SVI fit per expiry: weighted least squares on total variance, weights of 1 / bid ask width in vol so the tight ATM quotes count more than the wide wings, several random starts, then one outlier pass (anything more than 3x its own half spread from the first fit is dropped and the slice refitted).
+5. Arbitrage checks
    * butterfly: Durrleman's g(k) ≥ 0 on k in [-1, 1]
    * calendar: total variance non decreasing in T at every k
-6. **Surface**: linear interpolation in total variance between expiries.
+6. Surface: linear interpolation in total variance between expiries.
 
 ## The arbitrage issue I hit
 
@@ -45,8 +45,12 @@ python -m volsurface data/nky_chain_2026-10-23.csv --asof 2026-10-23 --no-arb-pe
 
 Plots go to `out/smiles.png` and `out/surface.png`.
 
-## Not done yet
+## Still to do
 
 * SSVI or another parametrisation that is arbitrage free by construction instead of by penalty
 * American exercise (fine for European index options, not for single stocks)
 * time series of fits so the parameters can be checked for stability day to day
+
+---
+
+If something here is unclear, broken, or just wrong, feel free to open an issue. I'm always happy to chat about it.
